@@ -1,0 +1,12 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="test" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="BofLoader/BofLoader.vcxproj" Id="35cf5c3a-66fc-46de-bb58-651bc6d87550">
+    <BuildType Solution="test|*" Project="Release" />
+  </Project>
+</Solution>
