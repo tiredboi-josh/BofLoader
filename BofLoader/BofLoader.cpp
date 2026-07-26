@@ -1,10 +1,12 @@
 // BofLoader.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
-
+// 
+//includes
 #include <iostream>
 #include <fstream>
 #include <format>
 
+//type defenitions
 /*
 typedef struct _CoffHeader {            // offset +0
     uint16_t    machine;
@@ -98,7 +100,16 @@ typedef struct _CoffSymbol {
 
 const size_t SYMBOL_SIZE = 18;
 
+typedef struct _CoffSymbolStringTable {
+    uint32_t Size;
+};
 
+
+//function defenitions
+char* GetSymbolName(_CoffSymbolStringTable* SymbolStringTable, _CoffSymbol* coffSymbol);
+
+
+// main function
 int main(int argc, char* argv[])
 {
     
@@ -123,33 +134,38 @@ int main(int argc, char* argv[])
 
    char* data = (char*)calloc((size_t)CoffSize, sizeof(char));
     Coffbase.read(data, CoffSize);
+    
+    
     _CoffHeader *coffHeader = (struct _CoffHeader*)data;
-    
-    
+    if (coffHeader == NULL) {
+        throw std::runtime_error("coffHeader is null");
+    }
+    _CoffSymbolStringTable* SymbolStringTable = (struct _CoffSymbolStringTable*)(data + (coffHeader->pointerToSymbolTable + (SYMBOL_SIZE * coffHeader->numberOfSymbols)));
 
-    
     // parsing the sections for relocations
     for (uint16_t i = 0; i < coffHeader->numberOfSections; i++) {
 
-        // bug: does not retreve section[1] correctly, might parse section[0] correct - doesn't crash.
-        _CoffSection* coffSection_i = (struct _CoffSection*)(data + HEADER_SIZE) + (i * SECTION_SIZE);
+       
+        _CoffSection* coffSection_i = (struct _CoffSection*)(data + (HEADER_SIZE+ (SECTION_SIZE * i)));
 
         //parsing the relocation table to get the correct symbol for the relocation
         for (uint16_t r = 0; r < coffSection_i->numberOfRelocations; r++) {
-            _CoffReloc* coffReloc_r = (struct _CoffReloc*)((data + coffSection_i->pointerToRelocations) + (r * RELOC_SIZE));
+            _CoffReloc* coffReloc_r = (struct _CoffReloc*)(data + (coffSection_i->pointerToRelocations + (r * RELOC_SIZE)));
 
-            uint32_t* relocationAddress = ((uint32_t*)(data + coffSection_i->pointerToRawData) + coffReloc_r->virtualAddress);
+            uint32_t* relocationAddress = (uint32_t*)(data + (coffSection_i->pointerToRawData + coffReloc_r->virtualAddress));
             
 
             // perform a check for outofbounds array call
-            if (coffReloc_r->symbolTableIndex <= coffHeader->numberOfSymbols and coffReloc_r->symbolTableIndex >= 0) {
-                _CoffSymbol* coffsymbol = (struct _CoffSymbol*)((data + coffHeader->pointerToSymbolTable) + (SYMBOL_SIZE * coffReloc_r->symbolTableIndex));
-                std::cout << coffsymbol->first.name << std::endl;
-            }
-            else
-            {
+            if (coffReloc_r->symbolTableIndex >= coffHeader->numberOfSymbols and coffReloc_r->symbolTableIndex <= 0) {
+        
                 return 1;
             }
+
+            _CoffSymbol* coffSymbol = (struct _CoffSymbol*)(data + (coffHeader->pointerToSymbolTable + (SYMBOL_SIZE * coffReloc_r->symbolTableIndex)));
+
+            char * symbolName = GetSymbolName(SymbolStringTable, coffSymbol);
+
+            
 
         }
 
@@ -163,4 +179,19 @@ int main(int argc, char* argv[])
 
 
     return 0;
+}
+
+// get symbol name for coff relocation
+char* GetSymbolName(_CoffSymbolStringTable* SymbolStringTable, _CoffSymbol* coffSymbol) {
+    // get symbol name
+    if (coffSymbol->first.value[0] == 0) {
+
+        return (char*)SymbolStringTable + coffSymbol->first.value[1];
+
+    }
+    else
+    {
+        return coffSymbol->first.name;
+
+    }
 }
